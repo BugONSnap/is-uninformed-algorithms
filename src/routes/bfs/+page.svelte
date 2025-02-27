@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { dfs } from '$lib/uninformedAlgorithms';
+    import { bfs } from '$lib/uninformedAlgorithms';
 
     const graph: Record<string, string[]> = {
         'A': ['B', 'C'],
@@ -13,9 +13,10 @@
     let startNode = 'A';
     let goalNode = 'F';
     let path: string[] | null = null;
-    let searchHistory: string[] = [];
-    let isSearching = false;
-    let searchStep = 0;
+
+    function runSearch() {
+        path = bfs(graph, startNode, goalNode);
+    }
 
     const nodePositions = {
         'A': { x: 200, y: 100 },
@@ -26,59 +27,8 @@
         'F': { x: 250, y: 300 }
     };
 
-    async function runSearch() {
-        resetSearch();
-        isSearching = true;
-        
-        // Simulate DFS exploration pattern
-        const explorationOrder = simulateDFSExploration(startNode);
-        
-        for (let node of explorationOrder) {
-            searchHistory.push(node);
-            searchHistory = searchHistory;
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            searchStep++;
-        }
-
-        path = dfs(graph, startNode, goalNode);
-        isSearching = false;
-    }
-
-    function simulateDFSExploration(start: string, visited = new Set<string>()): string[] {
-        const exploration: string[] = [];
-        const stack = [start];
-        
-        while (stack.length > 0) {
-            const node = stack.pop()!;
-            if (!visited.has(node)) {
-                visited.add(node);
-                exploration.push(node);
-                
-                // Add neighbors in reverse order for DFS-like visualization
-                for (let neighbor of [...(graph[node] || [])].reverse()) {
-                    if (!visited.has(neighbor)) {
-                        stack.push(neighbor);
-                    }
-                }
-            }
-        }
-        return exploration;
-    }
-
     function isInPath(node: string) {
         return path?.includes(node);
-    }
-
-    function isExplored(node: string) {
-        return searchHistory.includes(node);
-    }
-
-    function getNodeColor(node: string) {
-        if (node === startNode) return '#2196F3';
-        if (node === goalNode) return '#F44336';
-        if (isInPath(node)) return '#4CAF50';
-        if (isExplored(node)) return '#FFA726';
-        return '#fff';
     }
 
     function isEdgeInPath(from: string, to: string) {
@@ -91,46 +41,25 @@
         }
         return false;
     }
-
     function resetSearch() {
         path = null;
-        searchHistory = [];
-        searchStep = 0;
-        isSearching = false;
     }
 </script>
 
 <div class="container mx-auto p-4">
-    <h1 class="text-3xl font-bold mb-4">Depth-First Search (DFS)</h1>
+    <h1 class="text-3xl font-bold mb-4">Breadth-First Search (BFS)</h1>
     
     <div class="mb-6">
         <p class="mb-4">
-            Depth-First Search (DFS) explores deeply into a path before backtracking. 
-            Watch as it dives deep into one branch before exploring alternatives.
-            <br>
-            <span class="text-orange-500">Orange nodes</span> show the exploration sequence, 
-            and <span class="text-green-500">green nodes</span> show the final path.
+            Breadth-First Search (BFS) is an algorithm for traversing or searching tree or graph data structures. 
+            It explores all the neighbor nodes at the present depth prior to moving on to nodes at the next depth level.
         </p>
-        <div class="flex gap-4">
-            <button 
-                on:click={runSearch} 
-                class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                disabled={isSearching}
-            >
-                {isSearching ? 'Searching...' : 'Start Search'}
-            </button>
-            <button 
-                on:click={resetSearch} 
-                class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-            >
-                Reset
-            </button>
-        </div>
+        <button on:click={resetSearch} class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-500-600">Reset</button>
     </div>
 
     <div style="display: flex; justify-content: center; align-items: center; height: 400px;" class="mb-6">
         <svg width="400" height="400" class="border rounded">
-            <!-- Draw edges -->
+            <!-- Draw edges first -->
             {#each Object.entries(graph) as [node, neighbors]}
                 {#each neighbors as neighbor}
                     <line 
@@ -149,26 +78,17 @@
                 <g transform="translate({nodePositions[node].x}, {nodePositions[node].y})">
                     <circle 
                         r="20" 
-                        fill={getNodeColor(node)}
+                        fill={node === startNode ? '#2196F3' : 
+                             node === goalNode ? '#F44336' :
+                             isInPath(node) ? '#4CAF50' : '#fff'}
                         stroke="#333"
                         stroke-width="2"
                     />
                     <text 
                         text-anchor="middle" 
                         dominant-baseline="middle"
-                        fill={getNodeColor(node) === '#fff' ? '#000' : '#fff'}
+                        fill={isInPath(node) ? '#fff' : '#000'}
                     >{node}</text>
-                    {#if isExplored(node)}
-                        <text 
-                            text-anchor="middle" 
-                            dominant-baseline="middle" 
-                            y="30" 
-                            fill="#666"
-                            font-size="12"
-                        >
-                            {searchHistory.indexOf(node) + 1}
-                        </text>
-                    {/if}
                 </g>
             {/each}
         </svg>
@@ -180,7 +100,6 @@
             <select 
                 bind:value={startNode}
                 class="ml-2 p-1 border rounded"
-                disabled={isSearching}
             >
                 {#each Object.keys(graph) as node}
                     <option value={node}>{node}</option>
@@ -193,13 +112,19 @@
             <select 
                 bind:value={goalNode}
                 class="ml-2 p-1 border rounded"
-                disabled={isSearching}
             >
                 {#each Object.keys(graph) as node}
                     <option value={node}>{node}</option>
                 {/each}
             </select>
         </label>
+
+        <button 
+            on:click={runSearch}
+            class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
+            Find Path
+        </button>
     </div>
 
     {#if path}
@@ -209,7 +134,7 @@
                 {path.join(' → ')}
             </p>
         </div>
-    {:else if path === null && !isSearching}
+    {:else if path === null}
         <div class="mt-4 text-red-500">
             No path found!
         </div>

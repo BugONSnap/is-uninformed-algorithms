@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { dfs } from '$lib/uninformedAlgorithms';
+    import { bidirectionalSearch } from '$lib/uninformedAlgorithms';
 
     const graph: Record<string, string[]> = {
         'A': ['B', 'C'],
@@ -13,9 +13,9 @@
     let startNode = 'A';
     let goalNode = 'F';
     let path: string[] | null = null;
-    let searchHistory: string[] = [];
+    let forwardHistory: string[] = [];
+    let backwardHistory: string[] = [];
     let isSearching = false;
-    let searchStep = 0;
 
     const nodePositions = {
         'A': { x: 200, y: 100 },
@@ -24,60 +24,80 @@
         'D': { x: 50, y: 300 },
         'E': { x: 150, y: 300 },
         'F': { x: 250, y: 300 }
-    };
+    } as const;
 
     async function runSearch() {
         resetSearch();
         isSearching = true;
         
-        // Simulate DFS exploration pattern
-        const explorationOrder = simulateDFSExploration(startNode);
+        // Simulate bidirectional exploration
+        const [forwardOrder, backwardOrder] = simulateBiSearch(startNode, goalNode);
         
-        for (let node of explorationOrder) {
-            searchHistory.push(node);
-            searchHistory = searchHistory;
+        const maxSteps = Math.max(forwardOrder.length, backwardOrder.length);
+        for (let i = 0; i < maxSteps; i++) {
+            if (i < forwardOrder.length) {
+                forwardHistory.push(forwardOrder[i]);
+                forwardHistory = forwardHistory;
+            }
+            if (i < backwardOrder.length) {
+                backwardHistory.push(backwardOrder[i]);
+                backwardHistory = backwardHistory;
+            }
             await new Promise(resolve => setTimeout(resolve, 1000));
-            searchStep++;
         }
 
-        path = dfs(graph, startNode, goalNode);
+        path = bidirectionalSearch(graph, startNode, goalNode);
         isSearching = false;
     }
 
-    function simulateDFSExploration(start: string, visited = new Set<string>()): string[] {
-        const exploration: string[] = [];
-        const stack = [start];
-        
-        while (stack.length > 0) {
-            const node = stack.pop()!;
-            if (!visited.has(node)) {
-                visited.add(node);
-                exploration.push(node);
-                
-                // Add neighbors in reverse order for DFS-like visualization
-                for (let neighbor of [...(graph[node] || [])].reverse()) {
-                    if (!visited.has(neighbor)) {
-                        stack.push(neighbor);
+    function simulateBiSearch(start: string, goal: string): [string[], string[]] {
+        const forwardExploration: string[] = [];
+        const backwardExploration: string[] = [];
+        const forwardVisited = new Set<string>();
+        const backwardVisited = new Set<string>();
+        const forwardQueue = [start];
+        const backwardQueue = [goal];
+
+        while (forwardQueue.length > 0 && backwardQueue.length > 0) {
+            // Forward exploration
+            const fNode = forwardQueue.shift()!;
+            if (!forwardVisited.has(fNode)) {
+                forwardVisited.add(fNode);
+                forwardExploration.push(fNode);
+                for (const neighbor of graph[fNode] || []) {
+                    if (!forwardVisited.has(neighbor)) {
+                        forwardQueue.push(neighbor);
                     }
                 }
             }
+
+            // Backward exploration
+            const bNode = backwardQueue.shift()!;
+            if (!backwardVisited.has(bNode)) {
+                backwardVisited.add(bNode);
+                backwardExploration.push(bNode);
+                for (const neighbor of graph[bNode] || []) {
+                    if (!backwardVisited.has(neighbor)) {
+                        backwardQueue.push(neighbor);
+                    }
+                }
+            }
+
+            // Check if explorations meet
+            if ([...forwardVisited].some(n => backwardVisited.has(n))) {
+                break;
+            }
         }
-        return exploration;
-    }
 
-    function isInPath(node: string) {
-        return path?.includes(node);
-    }
-
-    function isExplored(node: string) {
-        return searchHistory.includes(node);
+        return [forwardExploration, backwardExploration];
     }
 
     function getNodeColor(node: string) {
         if (node === startNode) return '#2196F3';
         if (node === goalNode) return '#F44336';
-        if (isInPath(node)) return '#4CAF50';
-        if (isExplored(node)) return '#FFA726';
+        if (path?.includes(node)) return '#4CAF50';
+        if (forwardHistory.includes(node)) return '#FFA726';
+        if (backwardHistory.includes(node)) return '#9C27B0';
         return '#fff';
     }
 
@@ -94,21 +114,22 @@
 
     function resetSearch() {
         path = null;
-        searchHistory = [];
-        searchStep = 0;
+        forwardHistory = [];
+        backwardHistory = [];
         isSearching = false;
     }
 </script>
 
 <div class="container mx-auto p-4">
-    <h1 class="text-3xl font-bold mb-4">Depth-First Search (DFS)</h1>
+    <h1 class="text-3xl font-bold mb-4">Bidirectional Search</h1>
     
     <div class="mb-6">
         <p class="mb-4">
-            Depth-First Search (DFS) explores deeply into a path before backtracking. 
-            Watch as it dives deep into one branch before exploring alternatives.
+            Bidirectional Search explores from both the start and goal nodes simultaneously.
+            Watch as the search progresses from both ends until they meet.
             <br>
-            <span class="text-orange-500">Orange nodes</span> show the exploration sequence, 
+            <span class="text-orange-500">Orange nodes</span> show forward exploration,
+            <span class="text-purple-500">purple nodes</span> show backward exploration,
             and <span class="text-green-500">green nodes</span> show the final path.
         </p>
         <div class="flex gap-4">
@@ -158,15 +179,26 @@
                         dominant-baseline="middle"
                         fill={getNodeColor(node) === '#fff' ? '#000' : '#fff'}
                     >{node}</text>
-                    {#if isExplored(node)}
+                    {#if forwardHistory.includes(node)}
                         <text 
-                            text-anchor="middle" 
+                            text-anchor="start" 
                             dominant-baseline="middle" 
-                            y="30" 
-                            fill="#666"
+                            x="25" 
+                            fill="#FFA726"
                             font-size="12"
                         >
-                            {searchHistory.indexOf(node) + 1}
+                            F{forwardHistory.indexOf(node) + 1}
+                        </text>
+                    {/if}
+                    {#if backwardHistory.includes(node)}
+                        <text 
+                            text-anchor="end" 
+                            dominant-baseline="middle" 
+                            x="-25" 
+                            fill="#9C27B0"
+                            font-size="12"
+                        >
+                            B{backwardHistory.indexOf(node) + 1}
                         </text>
                     {/if}
                 </g>

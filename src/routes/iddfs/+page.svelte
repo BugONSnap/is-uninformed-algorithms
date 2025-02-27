@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { dfs } from '$lib/uninformedAlgorithms';
+    import { iddfs } from '$lib/uninformedAlgorithms';
 
     const graph: Record<string, string[]> = {
         'A': ['B', 'C'],
@@ -12,10 +12,11 @@
 
     let startNode = 'A';
     let goalNode = 'F';
+    let maxDepth = 3;
     let path: string[] | null = null;
     let searchHistory: string[] = [];
+    let currentDepth = 0;
     let isSearching = false;
-    let searchStep = 0;
 
     const nodePositions = {
         'A': { x: 200, y: 100 },
@@ -24,60 +25,59 @@
         'D': { x: 50, y: 300 },
         'E': { x: 150, y: 300 },
         'F': { x: 250, y: 300 }
-    };
+    } as const;
 
     async function runSearch() {
         resetSearch();
         isSearching = true;
         
-        // Simulate DFS exploration pattern
-        const explorationOrder = simulateDFSExploration(startNode);
-        
-        for (let node of explorationOrder) {
-            searchHistory.push(node);
-            searchHistory = searchHistory;
+        for (let depth = 0; depth <= maxDepth; depth++) {
+            currentDepth = depth;
+            const depthExploration = simulateDLS(startNode, depth);
+            
+            for (let node of depthExploration) {
+                searchHistory.push(node);
+                searchHistory = searchHistory;
+                await new Promise(resolve => setTimeout(resolve, 800));
+            }
+            
+            // If path is found at this depth, stop exploring
+            const result = iddfs(graph, startNode, goalNode, depth);
+            if (result) {
+                path = result;
+                break;
+            }
+            
+            // Clear history for next depth iteration
             await new Promise(resolve => setTimeout(resolve, 1000));
-            searchStep++;
+            searchHistory = [];
         }
-
-        path = dfs(graph, startNode, goalNode);
+        
         isSearching = false;
     }
 
-    function simulateDFSExploration(start: string, visited = new Set<string>()): string[] {
+    function simulateDLS(start: string, depthLimit: number, depth = 0, visited = new Set<string>()): string[] {
         const exploration: string[] = [];
-        const stack = [start];
+        if (depth > depthLimit) return exploration;
         
-        while (stack.length > 0) {
-            const node = stack.pop()!;
-            if (!visited.has(node)) {
-                visited.add(node);
-                exploration.push(node);
-                
-                // Add neighbors in reverse order for DFS-like visualization
-                for (let neighbor of [...(graph[node] || [])].reverse()) {
-                    if (!visited.has(neighbor)) {
-                        stack.push(neighbor);
-                    }
+        if (!visited.has(start)) {
+            visited.add(start);
+            exploration.push(start);
+            
+            for (const neighbor of graph[start] || []) {
+                if (!visited.has(neighbor)) {
+                    exploration.push(...simulateDLS(neighbor, depthLimit, depth + 1, visited));
                 }
             }
         }
         return exploration;
     }
 
-    function isInPath(node: string) {
-        return path?.includes(node);
-    }
-
-    function isExplored(node: string) {
-        return searchHistory.includes(node);
-    }
-
     function getNodeColor(node: string) {
         if (node === startNode) return '#2196F3';
         if (node === goalNode) return '#F44336';
-        if (isInPath(node)) return '#4CAF50';
-        if (isExplored(node)) return '#FFA726';
+        if (path?.includes(node)) return '#4CAF50';
+        if (searchHistory.includes(node)) return '#FFA726';
         return '#fff';
     }
 
@@ -95,20 +95,22 @@
     function resetSearch() {
         path = null;
         searchHistory = [];
-        searchStep = 0;
+        currentDepth = 0;
         isSearching = false;
     }
 </script>
 
 <div class="container mx-auto p-4">
-    <h1 class="text-3xl font-bold mb-4">Depth-First Search (DFS)</h1>
+    <h1 class="text-3xl font-bold mb-4">Iterative Deepening DFS (IDDFS)</h1>
     
     <div class="mb-6">
         <p class="mb-4">
-            Depth-First Search (DFS) explores deeply into a path before backtracking. 
-            Watch as it dives deep into one branch before exploring alternatives.
+            IDDFS combines depth-first search with increasing depth limits.
+            Watch as it explores the graph with increasing depths until finding the goal.
             <br>
-            <span class="text-orange-500">Orange nodes</span> show the exploration sequence, 
+            Current Depth Limit: {currentDepth}
+            <br>
+            <span class="text-orange-500">Orange nodes</span> show current exploration,
             and <span class="text-green-500">green nodes</span> show the final path.
         </p>
         <div class="flex gap-4">
@@ -158,7 +160,7 @@
                         dominant-baseline="middle"
                         fill={getNodeColor(node) === '#fff' ? '#000' : '#fff'}
                     >{node}</text>
-                    {#if isExplored(node)}
+                    {#if searchHistory.includes(node)}
                         <text 
                             text-anchor="middle" 
                             dominant-baseline="middle" 
@@ -200,6 +202,18 @@
                 {/each}
             </select>
         </label>
+
+        <label class="block mb-2">
+            Max Depth:
+            <input 
+                type="number" 
+                bind:value={maxDepth}
+                min="1"
+                max="10"
+                class="ml-2 p-1 border rounded w-20"
+                disabled={isSearching}
+            />
+        </label>
     </div>
 
     {#if path}
@@ -211,7 +225,7 @@
         </div>
     {:else if path === null && !isSearching}
         <div class="mt-4 text-red-500">
-            No path found!
+            No path found within depth limit!
         </div>
     {/if}
 </div>
